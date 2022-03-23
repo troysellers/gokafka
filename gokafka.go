@@ -10,6 +10,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,6 +20,7 @@ import (
 
 type kafkaMessage struct {
 	Timestamp   string  `json:"timestamp"`
+	Sensor      string  `json:"sensor"`
 	Temperature float64 `json:"temperature"`
 }
 type credentials struct {
@@ -40,9 +42,14 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err := run(c); err != nil {
-		log.Fatalf("%v", err)
+	// run some concurrent processes here to simulate 100 different temp sensors
+	var wg sync.WaitGroup
+	wg.Add(100)
+	for i := 1; i <= 100; i++ {
+		go run(c, fmt.Sprintf("sensor-%d", i), &wg)
 	}
+	wg.Wait()
+
 }
 
 func loadCredentials() (*credentials, error) {
@@ -67,12 +74,13 @@ func loadCredentials() (*credentials, error) {
 }
 
 //TODO : function should return slice of errors to be sure the error handling from the defered close doesn't break things.
-func run(c *credentials) error {
+func run(c *credentials, sensor string, wg *sync.WaitGroup) {
 
+	defer wg.Done()
 	caCertPool := x509.NewCertPool()
 	ok := caCertPool.AppendCertsFromPEM(c.CaCert)
 	if !ok {
-		return fmt.Errorf("Failed to parse the CA Certificate file at : %s", c.CaCertPath)
+		log.Fatalf("Failed to parse the CA Certificate file at : %s", c.CaCertPath)
 	}
 
 	dialer := &kafka.Dialer{
@@ -95,8 +103,8 @@ func run(c *credentials) error {
 	// yes, this sensor will run forever!!
 	var err error
 	for {
-		if err = writeMsg(producer); err != nil {
-			return err
+		if err = writeMsg(producer, sensor); err != nil {
+			log.Fatalf("%v", err)
 		}
 		time.Sleep(5 * time.Second)
 	}
@@ -106,12 +114,13 @@ func run(c *credentials) error {
 	sends a temperature reading to the kafka topic
 	temp will be random between 0 - 100
 */
-func writeMsg(p *kafka.Writer) error {
+func writeMsg(p *kafka.Writer, sensor string) error {
 
 	t := time.Now()
 
 	msg := &kafkaMessage{
 		Timestamp:   t.Format("2006-01-02T15:04:05-0700"),
+		Sensor:      sensor,
 		Temperature: rand.Float64() * 100}
 	bytes, err := json.Marshal(msg)
 	if err != nil {
