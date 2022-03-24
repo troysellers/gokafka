@@ -34,7 +34,7 @@ Go ahead and click the "Create Service" button. This will take you back to your 
 
 ![Kafka Running](/images/4-kafkaRunning.png) 
 
-While we are here, flip on the Apache Kafka REST API switch. This will help us check if everything is working in a minute or two. 
+Click on the servic name and you will find yourself at the Service details page. Here you will see all the details and controls for interacting with your newly created Kafka cluster. There is a [lot to cover](https://developer.aiven.io/docs/products/kafka/howto.html) here, most of it out of scope for today but while we are here, flip on the Apache Kafka REST API switch. This will help us check if everything is working in a minute or two. 
 
 Also, navigate to the Topics tab and let's create a topic for us to send some messages to. I simply leave the defaults in the Advanced Configuration section. 
 
