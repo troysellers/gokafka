@@ -29,6 +29,7 @@ type credentials struct {
 	CaCertPath      string
 	CaCert          []byte
 	KeyPair         tls.Certificate
+	X509CertPool    *x509.CertPool
 }
 
 func init() {
@@ -44,12 +45,11 @@ func main() {
 	}
 	// run some concurrent processes here to simulate 100 different temp sensors
 	var wg sync.WaitGroup
-	wg.Add(100)
 	for i := 1; i <= 100; i++ {
+		wg.Add(1)
 		go run(c, fmt.Sprintf("sensor-%d", i), &wg)
 	}
 	wg.Wait()
-
 }
 
 func loadCredentials() (*credentials, error) {
@@ -70,40 +70,41 @@ func loadCredentials() (*credentials, error) {
 		log.Printf("unable to find path %s\n", c.CaCertPath)
 		return nil, err
 	}
+
+	c.X509CertPool = x509.NewCertPool()
+	ok := c.X509CertPool.AppendCertsFromPEM(c.CaCert)
+	if !ok {
+		log.Fatalf("Failed to parse the CA Certificate file at : %s", c.CaCertPath)
+	}
+
 	return c, nil
 }
 
 func run(c *credentials, sensor string, wg *sync.WaitGroup) {
 
 	defer wg.Done()
-	caCertPool := x509.NewCertPool()
-	ok := caCertPool.AppendCertsFromPEM(c.CaCert)
-	if !ok {
-		log.Fatalf("Failed to parse the CA Certificate file at : %s", c.CaCertPath)
-	}
 
 	dialer := &kafka.Dialer{
 		Timeout:   10 * time.Second,
 		DualStack: true,
 		TLS: &tls.Config{
 			Certificates: []tls.Certificate{c.KeyPair},
-			RootCAs:      caCertPool,
+			RootCAs:      c.X509CertPool,
 		},
 	}
 
 	producer := kafka.NewWriter(kafka.WriterConfig{
-		Brokers: []string{os.Getenv("HOST_URL")},
+		Brokers: []string{os.Getenv("SERVICE_URI")},
 		Topic:   os.Getenv("TOPIC"),
 		Dialer:  dialer,
 	})
 	// TODO : Handle the error this produces
 	defer producer.Close()
-
 	// yes, this sensor will run forever!!
 	var err error
 	for {
 		if err = writeMsg(producer, sensor); err != nil {
-			log.Fatalf("%v", err)
+			log.Fatalf("failed attempting to write message \n %v", err)
 		}
 		time.Sleep(5 * time.Second)
 	}
@@ -127,7 +128,6 @@ func writeMsg(p *kafka.Writer, sensor string) error {
 	if err != nil {
 		return err
 	}
-
 	// write the messages to our Kafka topic
 	err = p.WriteMessages(context.Background(), kafka.Message{Key: []byte(uuid.New().String()), Value: bytes})
 
