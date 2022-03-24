@@ -73,7 +73,6 @@ func loadCredentials() (*credentials, error) {
 	return c, nil
 }
 
-//TODO : function should return slice of errors to be sure the error handling from the defered close doesn't break things.
 func run(c *credentials, sensor string, wg *sync.WaitGroup) {
 
 	defer wg.Done()
@@ -118,15 +117,18 @@ func writeMsg(p *kafka.Writer, sensor string) error {
 
 	t := time.Now()
 
+	// create the message, just some random data for now
 	msg := &kafkaMessage{
 		Timestamp:   t.Format("2006-01-02T15:04:05-0700"),
 		Sensor:      sensor,
 		Temperature: rand.Float64() * 100}
+
 	bytes, err := json.Marshal(msg)
 	if err != nil {
 		return err
 	}
 
+	// write the messages to our Kafka topic
 	err = p.WriteMessages(context.Background(), kafka.Message{Key: []byte(uuid.New().String()), Value: bytes})
 
 	if err != nil {
