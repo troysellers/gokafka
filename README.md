@@ -132,7 +132,7 @@ func loadCredentials() (*credentials, error) {
 }
 ```
 
-###  Create and Send the Messages
+###  Create then Send the Messages
 
 In the main() function I create 100 different go routines to simulate 100 different temp sensors sending one message every 5 seconds. Each sensor gets it's own name passed as a function parameter.
 
